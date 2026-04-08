@@ -435,275 +435,157 @@ RADAR_STYLES = [
     {'color': '#D05A5E', 'linewidth': 3, 'linestyle': '-'},   # 第4次（最新）- 深砖红
 ]
 
-@st.cache_data(show_spinner=False)
-def load_data_multisheet(file_path_or_buffer):
-    """
-    从多个sheet加载数据并合并 - 增强版（自动识别格式，无需固定sheet名）
-    支持：任意sheet名称 / 任意表头行位置 / 有无10行间隔 / 双层表头
-    """
-    from io import BytesIO
 
-    # ★ 关键修复：Streamlit 上传的文件对象只能读一次。
-    #   先把全部内容读入内存（BytesIO），后续所有 pd.read_excel / ExcelFile
-    #   都从同一个可重复 seek 的 BytesIO 读取，不会卡死。
+def load_data_multisheet(uploaded_file):
     try:
-        if hasattr(file_path_or_buffer, 'read'):
-            raw_bytes = file_path_or_buffer.read()
-        else:
-            with open(file_path_or_buffer, 'rb') as fh:
-                raw_bytes = fh.read()
-        file_buf = BytesIO(raw_bytes)
+        raw = uploaded_file.read()
     except Exception as e:
-        st.error(f"❌ 读取文件失败：{e}")
+        st.error(f"无法读取文件：{e}")
         return None
+    return _parse_excel_bytes(raw, getattr(uploaded_file, 'name', 'data.xlsx'))
 
-    def is_athlete_name(s):
-        """判断字符串是否为有效运动员姓名（2-6位中文）"""
+
+@st.cache_data(show_spinner=False)
+def _parse_excel_bytes(file_bytes: bytes, filename: str):
+    import io
+
+    def is_cn_name(s):
         s = str(s).strip()
-        return (2 <= len(s) <= 6 and
-                all('\u4e00' <= c <= '\u9fa5' for c in s))
+        return 2 <= len(s) <= 6 and all('一' <= c <= '龥' for c in s)
 
-    # ── Step 1: 探测所有 Sheet ──────────────────────────────────────────────
-    # 用 openpyxl read_only 模式快速取 sheet 名（比 pd.ExcelFile 快 3-5x）
+    buf = io.BytesIO(file_bytes)
+
+    # 1. 获取 Sheet 名
     try:
-        from openpyxl import load_workbook as _opxl_load
-        file_buf.seek(0)
-        _wb = _opxl_load(file_buf, read_only=True, data_only=True)
-        all_sheets = _wb.sheetnames
+        from openpyxl import load_workbook as _lw
+        _wb = _lw(buf, read_only=True, data_only=True)
+        sheets = list(_wb.sheetnames)
         _wb.close()
     except Exception:
+        buf.seek(0)
         try:
-            file_buf.seek(0)
-            xl = pd.ExcelFile(file_buf)
-            all_sheets = xl.sheet_names
+            sheets = pd.ExcelFile(buf).sheet_names
         except Exception as e:
-            st.error(f"❌ 无法打开Excel文件：{e}")
-            st.info("💡 支持格式：.xlsx / .xls；请确认文件未加密、未损坏")
+            st.error(f"无法读取Excel：{e}")
             return None
 
-    if not all_sheets:
-        st.error("❌ Excel文件中没有找到任何Sheet")
-        return None
+    st.info(f"找到 {len(sheets)} 个Sheet：{' / '.join(sheets)}")
 
-    st.info(f"📋 发现 {len(all_sheets)} 个Sheet：{' | '.join(all_sheets)}")
-
-    # ── Step 2: 找主数据 Sheet ─────────────────────────────────────────────
-    MONTHLY_KEYWORDS = ['月周', '月测', '主要', '月', 'monthly', 'main', 'data']
-    monthly_sheet = None
-
-    # 精确匹配
-    for sn in all_sheets:
+    # 2. 找主数据 Sheet
+    main = None
+    for sn in sheets:
         if sn.strip() == '月周测试指标':
-            monthly_sheet = sn
-            break
-
-    # 关键词匹配
-    if not monthly_sheet:
-        for sn in all_sheets:
-            if any(k in sn for k in MONTHLY_KEYWORDS):
-                monthly_sheet = sn
-                break
-
-    # 找含"姓名"的 Sheet
-    if not monthly_sheet:
-        for sn in all_sheets:
+            main = sn; break
+    if not main:
+        for sn in sheets:
+            if any(k in sn for k in ['月周','月测']):
+                main = sn; break
+    if not main:
+        for sn in sheets:
             try:
-                file_buf.seek(0)
-                df_peek = pd.read_excel(file_buf, sheet_name=sn,
-                                        nrows=25, header=None, dtype=str)
-                if df_peek.astype(str).apply(
-                    lambda col: col.str.contains('姓名', na=False)
-                ).any().any():
-                    monthly_sheet = sn
-                    break
+                buf.seek(0)
+                df_t = pd.read_excel(buf, sheet_name=sn, nrows=25,
+                                     header=None, dtype=str, engine='openpyxl')
+                if '姓名' in df_t.astype(str).values:
+                    main = sn; break
             except Exception:
                 continue
-
-    # 兜底：第一个 Sheet
-    if not monthly_sheet:
-        monthly_sheet = all_sheets[0]
-        st.warning(f"⚠️ 未找到标准Sheet名，自动使用：**{monthly_sheet}**")
+    if not main:
+        main = sheets[0]
+        st.warning(f"未找到标准Sheet，使用：{main}")
     else:
-        st.write(f"✓ 主数据 Sheet：**{monthly_sheet}**")
+        st.write(f"主数据Sheet：{main}")
 
-    # ── Step 3: 读取原始数据 ──────────────────────────────────────────────
-    # 两步读取：先25行定位表头，再精准读取完整数据（大文件速度提升 3-5x）
+    # 3. 读全量数据
     try:
-        file_buf.seek(0)
-        df_peek = pd.read_excel(file_buf, sheet_name=monthly_sheet,
-                                nrows=25, header=None, dtype=str, engine='openpyxl')
+        buf.seek(0)
+        df_raw = pd.read_excel(buf, sheet_name=main,
+                               header=None, dtype=str, engine='openpyxl')
     except Exception as e:
-        st.error(f"❌ 读取 Sheet [{monthly_sheet}] 失败：{e}")
+        st.error(f"读取 [{main}] 失败：{e}")
         return None
-    df_peek = df_peek.fillna('')
+    df_raw = df_raw.fillna('').astype(str)
 
-    _h_tmp, _nc_tmp = None, 0
-    _NV = {'姓名','运动员姓名','运动员','Name','name'}
-    for _i in range(len(df_peek)):
-        for _j in range(len(df_peek.columns)):
-            if str(df_peek.iloc[_i,_j]).strip() in _NV:
-                _h_tmp = _i; _nc_tmp = _j; break
-        if _h_tmp is not None: break
-
-    _skip = list(range(1, _h_tmp)) if (_h_tmp and _h_tmp > 1) else []
-    try:
-        file_buf.seek(0)
-        df_raw = pd.read_excel(file_buf, sheet_name=monthly_sheet,
-                               header=None, dtype=str,
-                               skiprows=_skip, engine='openpyxl')
-    except Exception as e:
-        st.error(f"❌ 读取完整数据失败：{e}")
-        return None
-    df_raw = df_raw.fillna('')
-
-    # ── Step 4: 找表头行 ──────────────────────────────────────────────────
-    header_row = None
-    name_col_idx = 0
-    NAME_VARIANTS = {'姓名', '运动员姓名', '运动员', 'Name', 'name'}
-
+    # 4. 找姓名列
+    header_row, name_col = None, 0
+    name_variants = ('姓名', '运动员姓名', '运动员', 'Name')
     for i in range(min(30, len(df_raw))):
         for j in range(len(df_raw.columns)):
-            if str(df_raw.iloc[i, j]).strip() in NAME_VARIANTS:
-                header_row = i
-                name_col_idx = j
-                break
+            if df_raw.iat[i, j].strip() in name_variants:
+                header_row, name_col = i, j; break
         if header_row is not None:
             break
 
     if header_row is None:
-        st.error("❌ 未在前30行找到【姓名】列")
-        with st.expander("📊 前15行内容（点击展开帮助诊断）", expanded=True):
-            st.dataframe(df_raw.head(15))
-        st.info("💡 请确认数据表中有【姓名】作为列标题，且位于前30行内")
+        st.error("前30行未找到姓名列，原始数据预览：")
+        st.dataframe(df_raw.head(15))
         return None
 
-    st.write(f"✓ 表头行：第 **{header_row + 1}** 行，姓名列：第 **{name_col_idx + 1}** 列")
+    st.write(f"表头第 {header_row+1} 行，姓名第 {name_col+1} 列")
 
-    # ── Step 5: 检测双层表头 ─────────────────────────────────────────────
-    CATEGORY_NAMES = {'维生素', '电解质', '甲功', '肝功', '血脂', '甲状腺', '血脂四项', '糖类'}
-    headers = list(df_raw.iloc[header_row])
-    is_double_hdr = any(str(h).strip() in CATEGORY_NAMES for h in headers)
+    # 5. 列名
+    headers = [str(v).strip() for v in df_raw.iloc[header_row]]
 
-    if is_double_hdr and header_row + 1 < len(df_raw):
-        next_row = list(df_raw.iloc[header_row + 1])
-        headers = [
-            str(next_row[i]).strip()
-            if str(next_row[i]).strip() and not str(next_row[i]).startswith('Unnamed')
-            else str(headers[i]).strip()
-            for i in range(len(headers))
-        ]
-        header_row += 1
-        st.write("✓ 检测到双层表头，已合并")
-
-    # ── Step 6: 跳过非运动员行，找数据起始行 ────────────────────────────
+    # 6. 找数据起始行
     data_start = header_row + 1
     for i in range(header_row + 1, min(header_row + 16, len(df_raw))):
-        cell = str(df_raw.iloc[i, name_col_idx]).strip()
-        if is_athlete_name(cell):
-            data_start = i
-            break
+        if is_cn_name(df_raw.iat[i, name_col]):
+            data_start = i; break
+    st.write(f"数据从第 {data_start+1} 行开始")
 
-    st.write(f"✓ 数据起始行：第 **{data_start + 1}** 行")
-
-    # ── Step 7: 构建运动员数据 DataFrame ───────────────────────────────
-    data_rows = df_raw.iloc[data_start:].copy()
-    data_rows.columns = range(len(data_rows.columns))
-
-    # 过滤有效运动员行
-    valid_mask = data_rows.iloc[:, name_col_idx].apply(
-        lambda x: is_athlete_name(str(x))
-    )
-    data_rows = data_rows[valid_mask].copy()
-
-    if len(data_rows) == 0:
-        st.error("❌ 未在数据行中找到有效运动员姓名（需为2-6位纯汉字）")
-        with st.expander("📊 表头后内容预览"):
-            st.dataframe(df_raw.iloc[header_row: header_row + 10])
+    # 7. 过滤运动员行
+    rows = df_raw.iloc[data_start:].copy()
+    rows = rows[rows.iloc[:, name_col].apply(is_cn_name)].copy()
+    if rows.empty:
+        st.error("未找到运动员数据")
+        st.dataframe(df_raw.iloc[header_row:header_row+10])
         return None
 
-    # 赋列名（处理列数不匹配）
-    min_cols = min(len(headers), len(data_rows.columns))
-    data_rows = data_rows.iloc[:, :min_cols].copy()
-    data_rows.columns = headers[:min_cols]
+    # 8. 组装 DataFrame
+    rows = rows.reset_index(drop=True)
+    rows.columns = range(len(rows.columns))
+    nc = min(len(headers), len(rows.columns))
+    rows = rows.iloc[:, :nc].copy()
+    rows.columns = headers[:nc]
 
-    # 数值转换
-    NON_NUMERIC = {'姓名', '运动员姓名', '运动员', '测试日期', '日期', '性别', '备注', 'Name'}
-    for col in data_rows.columns:
-        if str(col) not in NON_NUMERIC:
-            data_rows[col] = pd.to_numeric(data_rows[col], errors='ignore')
+    seen_c, uniq_c = {}, []
+    for c in rows.columns:
+        uniq_c.append(f"{c}#{seen_c[c]}" if c in seen_c else c)
+        seen_c[c] = seen_c.get(c, 0) + 1
+    rows.columns = uniq_c
 
-    # 列名唯一化
-    seen, new_cols = {}, []
-    for c in data_rows.columns:
-        cs = str(c)
-        if cs in seen:
-            seen[cs] += 1
-            new_cols.append(f"{cs}#{seen[cs]}")
-        else:
-            seen[cs] = 0
-            new_cols.append(cs)
-    data_rows.columns = new_cols
-    df_monthly = data_rows.reset_index(drop=True)
-    st.write(f"✓ 月周测试：**{len(df_monthly)}** 行，**{len(df_monthly.columns)}** 列")
+    skip_cols = {'姓名','运动员','运动员姓名','性别','测试日期','日期','备注','Date','Name'}
+    for c in rows.columns:
+        if c not in skip_cols:
+            rows[c] = pd.to_numeric(rows[c], errors='ignore')
 
-    # ── Step 8: 合并其他 Sheet ──────────────────────────────────────────
-    QUARTER_KW = ['季度', '季', '维生素', '电解质', '微量', 'quarterly']
-    YEAR_KW    = ['年度', '年', '甲功', '肝功', '血脂', 'annual', 'yearly']
-    OTHER_KW   = ['其他', '额外', 'other', '触珠']
-
-    name_col_final = '姓名' if '姓名' in df_monthly.columns else df_monthly.columns[name_col_idx]
-    date_col_final = next((c for c in df_monthly.columns
-                           if '日期' in str(c) or str(c) in {'Date', 'DateStr'}), None)
+    df_monthly = rows
+    name_final = '姓名' if '姓名' in df_monthly.columns else df_monthly.columns[name_col]
+    date_final = next((c for c in df_monthly.columns
+                       if '日期' in str(c) or str(c) in ('Date','DateStr')), None)
     df_merged = df_monthly.copy()
 
-    if date_col_final:
-        df_merged['_merge_key'] = (
-            df_merged[name_col_final].astype(str) + '_' +
-            df_merged[date_col_final].astype(str)
-        )
-
-    def find_sheet_by_kw(kws, exclude):
-        for sn in all_sheets:
-            if sn == exclude:
-                continue
-            if any(k in sn for k in kws):
-                return sn
-        return None
-
-    for kws, label in [(QUARTER_KW, '季度'), (YEAR_KW, '年度'), (OTHER_KW, '其他')]:
-        sn = find_sheet_by_kw(kws, monthly_sheet)
+    # 9. 合并其他 Sheet
+    for kws, label in [(['季度','季'],'季度'),(['年度','年'],'年度'),(['其他','触珠'],'其他')]:
+        sn = next((s for s in sheets if s != main and any(k in s for k in kws)), None)
         if not sn:
             continue
         try:
-            file_buf.seek(0)
-            df_add_raw = pd.read_excel(file_buf, sheet_name=sn, header=[0, 1])
-            df_add = flatten_multiindex_columns(df_add_raw, label)
-            df_merged = merge_sheet_data(df_merged, df_add,
-                                         name_col_final, date_col_final, label)
-            st.write(f"✓ 已合并 [{sn}] Sheet（{label}数据）")
+            buf.seek(0)
+            df_add = pd.read_excel(buf, sheet_name=sn, header=[0,1],
+                                   dtype=str, engine='openpyxl')
+            df_add = flatten_multiindex_columns(df_add, label)
+            df_merged = merge_sheet_data(df_merged, df_add, name_final, date_final, label)
+            st.write(f"已合并 [{sn}]")
         except Exception as e:
-            st.warning(f"⚠️ [{sn}] 合并失败（{e}），跳过")
+            st.warning(f"[{sn}] 跳过：{e}")
 
-    if '_merge_key' in df_merged.columns:
-        df_merged.drop('_merge_key', axis=1, inplace=True)
-
-    # ── Step 9: 列名标准化 ──────────────────────────────────────────────
+    # 10. 列名标准化
     df_merged = df_merged.rename(columns=COLUMN_NAME_MAPPING)
 
-    # 处理重复列（保留第一列）
-    if df_merged.columns.duplicated().any():
-        seen2 = {}
-        keep = []
-        for i, c in enumerate(df_merged.columns):
-            if c not in seen2:
-                seen2[c] = True
-                keep.append(i)
-        df_merged = df_merged.iloc[:, keep]
-
-    athletes_found = sorted(df_merged[name_col_final].dropna().unique())
-    st.success(f"✅ 数据加载完成：{len(df_merged)} 条记录，{len(athletes_found)} 名运动员")
-    st.write(f"🏃 运动员列表：{' / '.join(map(str, athletes_found))}")
-
+    athletes_out = sorted(df_merged[name_final].dropna().unique())
+    st.success(f"加载完成：{len(df_merged)} 条记录，{len(athletes_out)} 名运动员")
+    st.write("运动员：" + " / ".join(map(str, athletes_out)))
     return df_merged
 
 
