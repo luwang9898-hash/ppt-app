@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>血液生化报告 · PPT生成系统 v4</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Microsoft YaHei',Arial,sans-serif;background:#eef1f7;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#1a3a5c,#2d6a9f);color:#fff;padding:18px 32px;display:flex;align-items:center;gap:12px}
+.hdr h1{font-size:18px;font-weight:700}.hdr p{font-size:11px;opacity:.8;margin-top:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:#fff;border-radius:11px;padding:18px 20px;box-shadow:0 1px 8px rgba(0,0,0,.08);margin-bottom:13px}
+.ct{font-size:13px;font-weight:700;color:#1a3a5c;margin-bottom:12px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.ct::before{content:'';display:inline-block;width:3px;height:14px;background:linear-gradient(#1a3a5c,#4a90d9);border-radius:2px;flex-shrink:0}
+.hint{font-size:10.5px;font-weight:400;color:#888;margin-left:2px}
+
+/* Upload */
+.ugrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.uz{border:2px dashed #b8cde0;border-radius:9px;padding:16px 10px;text-align:center;cursor:pointer;transition:.2s;background:#fafcff;min-height:100px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.uz:hover,.uz.over{border-color:#2d6a9f;background:#edf4ff}.uz.done{border-color:#27ae60;border-style:solid;background:#f0fff4}
+.uz .ico{font-size:24px;margin-bottom:4px}.uz .lb{font-size:12px;color:#444;font-weight:600;margin-bottom:2px}
+.uz .sb{font-size:10px;color:#999}.uz .fn{font-size:10.5px;color:#27ae60;font-weight:600;margin-top:4px}
+input[type=file]{display:none}
+.tplnote{font-size:11px;color:#666;background:#fff8e1;border:1px solid #ffe082;border-radius:7px;padding:8px 12px;margin-top:8px;line-height:1.6}
+
+/* Athletes */
+.search-box{width:100%;padding:6px 10px;border:1.5px solid #dde8f5;border-radius:7px;font-size:12.5px;margin-bottom:8px;outline:none}
+.search-box:focus{border-color:#4a90d9}
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:5px;max-height:160px;overflow-y:auto}
+.ai{display:flex;align-items:center;gap:5px;padding:5px 9px;border:1.5px solid #dde8f5;border-radius:6px;cursor:pointer;font-size:12px;transition:.15s;user-select:none}
+.ai:hover{border-color:#4a90d9;background:#f0f7ff}.ai.ck{border-color:#2d6a9f;background:#edf4ff;font-weight:600}
+.ai input{width:12px;height:12px;accent-color:#2d6a9f;cursor:pointer;flex-shrink:0}
+.gbadge{font-size:9.5px;padding:1px 5px;border-radius:8px;margin-left:auto;flex-shrink:0}
+.gbadge.m{background:#e3f2fd;color:#1565c0}.gbadge.f{background:#fce4ec;color:#880e4f}.gbadge.u{background:#f5f5f5;color:#aaa}
+
+/* Chart config */
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.chip{padding:3px 9px;border:1.5px solid #ccc;border-radius:13px;cursor:pointer;font-size:11px;transition:.15s;user-select:none}
+.chip.on{border-color:#2d6a9f;background:#edf4ff;color:#1a3a5c;font-weight:600}
+.tprow{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
+.tprow select,.tprow .tpsel{flex:1;min-width:120px;padding:4px 7px;border:1.5px solid #ddd;border-radius:6px;font-size:11.5px;background:#fff;cursor:pointer}
+.tprow .vs{color:#bbb;font-size:11px;flex-shrink:0}
+.delbtn{width:20px;height:20px;border:none;background:#ffebee;color:#c62828;border-radius:4px;cursor:pointer;font-size:12px;flex-shrink:0;line-height:1}
+.drange{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:4px}
+.drange label{display:flex;align-items:center;gap:5px;font-size:12px;color:#555}
+.drange select{padding:4px 8px;border:1.5px solid #ddd;border-radius:6px;font-size:12px;background:#fff}
+
+/* Slide mapping */
+.smap-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.smap-table th{background:#1a3a5c;color:#fff;padding:6px 10px;text-align:left}
+.smap-table td{border:1px solid #e8eef5;padding:5px 9px;vertical-align:middle}
+.smap-table tr:nth-child(even) td{background:#f9fbfd}
+.smap-table .pg{font-weight:700;color:#1a3a5c;text-align:center;width:52px}
+.smap-table .prev{color:#888;font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smap-table select{width:100%;padding:3px 6px;border:1.5px solid #ddd;border-radius:5px;font-size:11.5px;background:#fff}
+.smap-table .kept{color:#aaa;font-size:11px}
+
+/* Buttons */
+.btn{padding:9px 22px;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.btp{background:linear-gradient(135deg,#1a3a5c,#2d6a9f);color:#fff}.btp:hover{opacity:.9;transform:translateY(-1px)}.btp:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.bsm{padding:4px 9px;font-size:11px;border-radius:5px;background:#e8f2ff;color:#1a3a5c;border:1px solid #b0d0ef;cursor:pointer}
+.bsm:hover{background:#d0e8ff}
+.badd{padding:4px 11px;font-size:11px;border-radius:5px;background:#e8f5e9;color:#2e7d32;border:1.5px solid #a5d6a7;cursor:pointer;font-weight:600}
+.sep{height:1px;background:#f0f0f0;margin:10px 0}
+.subct{font-size:12px;font-weight:700;color:#444;margin:8px 0 4px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px}
+
+/* Progress / messages */
+.prog{display:none;margin-top:11px}.pbar{height:5px;background:#e0e8f0;border-radius:3px;overflow:hidden;margin-bottom:5px}
+.pfill{height:100%;background:linear-gradient(90deg,#1a3a5c,#4a90d9);border-radius:3px;transition:width .3s}
+.ptxt{font-size:11px;color:#666;text-align:center}
+.msg{padding:9px 12px;border-radius:7px;font-size:11.5px;margin-top:9px;display:none}
+.mok{background:#e8f5e9;color:#2e7d32;border-left:4px solid #43a047}
+.merr{background:#ffebee;color:#c62828;border-left:4px solid #e53935}
+
+/* Preview */
+.pvwrap{overflow:auto;max-height:200px;margin-top:8px}
+.pvwrap table{border-collapse:collapse;font-size:10.5px;min-width:400px}
+.pvwrap th{background:#1a3a5c;color:#fff;padding:4px 7px;white-space:nowrap}
+.pvwrap td{border:1px solid #e0e0e0;padding:3px 6px;text-align:center}
+.sr{background:#ffcdd2!important;color:#c62828}.sy{background:#fff9c4!important;color:#e65100}.sg{background:#c8e6c9!important;color:#2e7d32}
+
+#cfg{display:none}
+::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:#f0f0f0;border-radius:2px}::-webkit-scrollbar-thumb{background:#b0c4de;border-radius:2px}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <span style="font-size:26px">🩸</span>
+  <div><h1>运动员血液生化报告 · PPT生成系统 v4</h1>
+  <p>上传测试数据 + 可选PPT模板（留空白页供插图）→ 一键生成报告</p></div>
+</div>
+<div class="wrap">
+
+<!-- UPLOAD -->
+<div class="card">
+  <div class="ct">Step 1 · 上传文件</div>
+  <div class="ugrid">
+    <div class="uz" id="z1" onclick="document.getElementById('f1').click()"
+         ondragover="dg(event,this)" ondragleave="this.classList.remove('over')" ondrop="dp(event,this,'f1')">
+      <div class="ico">📊</div><div class="lb">测试数据 Excel（必须）</div>
+      <div class="sb">月周/季度/年度测试指标 .xlsx</div><div class="fn" id="fn1">未选择</div>
+    </div><input type="file" id="f1" accept=".xlsx,.xls" onchange="loadData(this.files[0])">
+
+    <div class="uz" id="z2" onclick="document.getElementById('f2').click()"
+         ondragover="dg(event,this)" ondragleave="this.classList.remove('over')" ondrop="dp(event,this,'f2')">
+      <div class="ico">🖼️</div><div class="lb">PPT 模板（可选）</div>
+      <div class="sb">空白页将按下方映射插入图表</div><div class="fn" id="fn2">未选择（从零生成）</div>
+    </div><input type="file" id="f2" accept=".pptx" onchange="loadTpl(this.files[0])">
+
+    <div class="uz" id="z3" onclick="document.getElementById('f3').click()"
+         ondragover="dg(event,this)" ondragleave="this.classList.remove('over')" ondrop="dp(event,this,'f3')">
+      <div class="ico">📋</div><div class="lb">参考范围 Excel（可选）</div>
+      <div class="sb">含「参考范围」「通用建议」Sheet</div><div class="fn" id="fn3">未选择（使用内置）</div>
+    </div><input type="file" id="f3" accept=".xlsx,.xls" onchange="loadRef(this.files[0])">
+  </div>
+  <div class="tplnote">📌 <b>模板说明：</b>模板里保留封面、文字、表格等内容页；需要插入图表的页面请<b>完全清空</b>（删除所有图片/图表/文字对象）。在下方"幻灯片映射"中为每个空白页指定要插入的图表类型。</div>
+  <div class="msg merr" id="mup"></div>
+  <div class="msg mok"  id="mld"></div>
+</div>
+
+<div id="cfg">
+
+<!-- ATHLETES -->
+<div class="card">
+  <div class="ct">Step 2 · 选择运动员
+    <div style="display:flex;gap:5px;margin-left:auto">
+      <button class="bsm" onclick="sa(1)">全选</button>
+      <button class="bsm" onclick="sa(0)">全不选</button>
+      <span style="font-size:11px;color:#888" id="acnt"></span>
+    </div>
+  </div>
+  <input class="search-box" id="asearch" placeholder="🔍 搜索运动员姓名…" oninput="filterAthletes(this.value)">
+  <div class="agrid" id="ag"></div>
+</div>
+
+<!-- CHART CONFIG -->
+<div class="card">
+  <div class="ct">Step 3 · 图表配置</div>
+
+  <div class="subct">👥 雷达图对比基准组 <span class="hint">Z-score相对于此组计算</span>
+    <div style="display:flex;gap:4px"><button class="bsm" onclick="cmpSelAll(1)">全选</button><button class="bsm" onclick="cmpSelAll(0)">全不选</button></div>
+  </div>
+  <input class="search-box" id="csearch" style="max-width:280px;margin-bottom:5px" placeholder="🔍 搜索对比运动员…" oninput="filterComp(this.value)">
+  <div class="agrid" id="cmpg" style="max-height:120px"></div>
+  <div class="sep"></div>
+  <div class="subct">🕸️ 雷达图指标
+    <div style="display:flex;gap:4px"><button class="bsm" onclick="rsa(1)">全选</button><button class="bsm" onclick="rsa(0)">全不选</button></div>
+  </div>
+  <div class="chip-row" id="rchips"></div>
+
+  <div class="sep"></div>
+  <div class="subct">📈 趋势图组（每组生成一张，左右各一指标）
+    <button class="badd" onclick="addPair()">＋ 添加</button>
+  </div>
+  <div id="tpairs"></div>
+
+  <div class="sep"></div>
+  <div class="subct">📅 时间范围</div>
+  <div class="drange">
+    <label>从：<select id="dfrom"><option value="">（全部）</option></select></label>
+    <span style="color:#ccc">—</span>
+    <label>至：<select id="dto"><option value="">（全部）</option></select></label>
+  </div>
+</div>
+
+<!-- SLIDE MAPPING -->
+<div class="card" id="smapCard">
+  <div class="ct">Step 4 · 幻灯片页面映射 <span class="hint">（为模板中每个空白页指定图表内容）</span></div>
+  <div id="smapBody">
+    <p style="font-size:12px;color:#aaa">上传PPT模板后，此处将显示各页面的映射配置</p>
+  </div>
+</div>
+
+<!-- SLIDE OPTS (no-template mode) -->
+<div class="card" id="soptCard">
+  <div class="ct">Step 4 · 幻灯片内容选择 <span class="hint">（无模板时生效）</span></div>
+  <div id="soptGrid"></div>
+</div>
+
+<!-- PREVIEW -->
+<div class="card">
+  <div class="ct">数据预览 <button class="bsm" style="margin-left:auto" onclick="tp()">展开/折叠</button></div>
+  <div id="pva" style="display:none"><div class="pvwrap" id="pvt"></div></div>
+</div>
+
+<!-- GENERATE -->
+<div class="card" style="text-align:center">
+  <div class="ct">Step 5 · 生成报告</div>
+  <p style="font-size:11.5px;color:#666;margin-bottom:11px">有模板：按页面映射插入图表 ｜ 无模板：从零生成完整PPT</p>
+  <button class="btn btp" id="gbtn" onclick="genAll()">🚀 生成并下载 PPT</button>
+  <div class="prog" id="pgw"><div class="pbar"><div class="pfill" id="pf" style="width:0%"></div></div><div class="ptxt" id="pt">…</div></div>
+  <div class="msg mok"  id="mdn"></div>
+  <div class="msg merr" id="mge"></div>
+</div>
+</div><!-- /cfg -->
+</div><!-- /wrap -->
+
+<script>
+'use strict';
+// ════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════
+const T = {primary:'1a3a5c',secondary:'2d6a9f',accent:'4a90d9',light:'ddeeff',dark:'0e2338'};
+const CHART_COLORS = ['#4472C4','#ED7D31','#70AD47','#FFC000','#5A9BD5','#D05A5E','#8BC1E9','#843C0C','#A9D18E'];
+const LOWER_IS_BETTER = ['肌酸激酶','血尿素','超敏C反应蛋白','皮质醇'];
+
+// Indicator definitions — complete list matching Python THEME_CONFIG
+// v: alternative column names in Excel
+const IND = [
+  // ── System 1: 调控与指挥中心 ──
+  {s:'S1',cat:'合成代谢',    key:'睾酮',          en:'T',       unit:'ng/dL',  v:['睾酮','T','睾酮/T','Testosterone']},
+  {s:'S1',cat:'合成代谢',    key:'游离睾酮',       en:'FT',      unit:'ng/dL',  v:['游离睾酮','FT','Free Testosterone','游离睾酮/FT']},
+  {s:'S1',cat:'分解代谢',    key:'皮质醇',         en:'C',       unit:'μg/dL',  v:['皮质醇','C','皮质醇/C','Cortisol']},
+  {s:'S1',cat:'状态平衡',    key:'睾酮/皮质醇比值',en:'T/C',     unit:'-',      v:['睾酮/皮质醇比值','T/C比值','T/C','睾酮皮质醇比值']},
+  // ── System 2: 执行与代谢系统 ──
+  {s:'S2',cat:'肌肉完整性',  key:'肌酸激酶',       en:'CK',      unit:'U/L',    v:['肌酸激酶','CK','肌酸激酶/CK']},
+  {s:'S2',cat:'能量代谢',    key:'血糖',           en:'GLU',     unit:'mmol/L', v:['血糖','GLU','Glu','血糖/GLU','Glucose']},
+  {s:'S2',cat:'能量代谢',    key:'血尿素',         en:'BUN',     unit:'mmol/L', v:['血尿素','BUN','血尿素/BUN','Urea']},
+  {s:'S2',cat:'能量代谢',    key:'尿酸',           en:'UA',      unit:'μmol/L', v:['尿酸','UA','尿酸/UA']},
+  // ── System 3: 循环与运载系统 ──
+  {s:'S3',cat:'红细胞',      key:'血红蛋白',        en:'Hb',      unit:'g/L',    v:['血红蛋白','Hb','血红蛋白/Hb']},
+  {s:'S3',cat:'红细胞',      key:'红细胞',          en:'RBC',     unit:'10¹²/L', v:['红细胞','RBC','红细胞/RBC']},
+  {s:'S3',cat:'红细胞',      key:'红细胞压积',      en:'HCT',     unit:'%',      v:['红细胞压积','HCT','Hct','血细胞比容']},
+  {s:'S3',cat:'红细胞',      key:'网织红细胞百分比',en:'Ret%',    unit:'%',      v:['网织红细胞百分比','Ret%','retic%','网织红细胞%']},
+  {s:'S3',cat:'红细胞',      key:'平均红细胞容积',  en:'MCV',     unit:'fl',     v:['平均红细胞容积','平均红细胞体积','MCV','平均红细胞容积/MCV']},
+  {s:'S3',cat:'红细胞',      key:'平均红细胞血红蛋白',en:'MCH',  unit:'pg',     v:['平均红细胞血红蛋白','平均红细胞血红蛋白量','MCH']},
+  {s:'S3',cat:'红细胞',      key:'平均血红蛋白浓度', en:'MCHC',  unit:'g/L',    v:['平均血红蛋白浓度','MCHC','平均红细胞血红蛋白浓度']},
+  {s:'S3',cat:'造血原料',    key:'铁蛋白',          en:'Ferri',   unit:'ng/ml',  v:['铁蛋白','Ferri','Ferritin','铁蛋白/Ferri']},
+  {s:'S3',cat:'造血原料',    key:'维生素B12',       en:'VB12',    unit:'pg/ml',  v:['维生素B12','VitB12','VB12','Vit B12','B12']},
+  {s:'S3',cat:'造血原料',    key:'维生素B6（PA）',   en:'VB6',    unit:'nmol/L', v:['维生素B6（PA）','VB6','VitB6','B6','维生素B6','VitB6(PA)']},
+  {s:'S3',cat:'造血原料',    key:'叶酸',            en:'FOL',     unit:'μg/L',   v:['叶酸','FOL','Folate']},
+  // ── System 4: 后勤保障与维护 ──
+  {s:'S4',cat:'免疫防御',    key:'白细胞',          en:'WBC',     unit:'10⁹/L',  v:['白细胞','WBC','白细胞/WBC']},
+  {s:'S4',cat:'免疫防御',    key:'超敏C反应蛋白',   en:'hsCRP',   unit:'mg/L',   v:['超敏C反应蛋白','hsCRP','hs-CRP','超敏CRP']},
+  {s:'S4',cat:'免疫防御',    key:'NLR',             en:'NLR',     unit:'-',      v:['NLR','中性粒细胞/淋巴细胞']},
+  {s:'S4',cat:'免疫防御',    key:'PLR',             en:'PLR',     unit:'-',      v:['PLR','血小板/淋巴细胞']},
+  {s:'S4',cat:'免疫防御',    key:'血小板',          en:'PLT',     unit:'10⁹/L',  v:['血小板','PLT','血小板/PLT']},
+  {s:'S4',cat:'免疫防御',    key:'触珠蛋白',        en:'HPT',     unit:'g/L',    v:['触珠蛋白','HPT','Haptoglobin']},
+  {s:'S4',cat:'微量营养',    key:'维生素B1',        en:'VB1',     unit:'nmol/L', v:['维生素B1','VB1','VitB1','B1']},
+  {s:'S4',cat:'微量营养',    key:'维生素B2',        en:'VB2',     unit:'nmol/L', v:['维生素B2','VB2','VitB2','B2']},
+  {s:'S4',cat:'微量营养',    key:'维生素D',         en:'VitD',    unit:'ng/ml',  v:['维生素D','VitD','Vit D','VD','25(OH)D']},
+  {s:'S4',cat:'微量营养',    key:'维生素D2',        en:'VD2',     unit:'ng/ml',  v:['维生素D2','VD2']},
+  {s:'S4',cat:'微量营养',    key:'维生素D3',        en:'VD3',     unit:'ng/ml',  v:['维生素D3','VD3','VD3(25-OH)']},
+  {s:'S4',cat:'水盐平衡',    key:'钾',              en:'K',       unit:'mmol/L', v:['钾','K','钾K']},
+  {s:'S4',cat:'水盐平衡',    key:'钠',              en:'Na',      unit:'mmol/L', v:['钠','Na','钠Na']},
+  {s:'S4',cat:'水盐平衡',    key:'氯',              en:'Cl',      unit:'mmol/L', v:['氯','Cl']},
+  {s:'S4',cat:'水盐平衡',    key:'渗透压',          en:'Osm',     unit:'mOsm/L', v:['渗透压','Osm','Osmotic Pressure']},
+  {s:'S4',cat:'水盐平衡',    key:'血尿素/肌酐',     en:'BUN/Cr',  unit:'-',      v:['血尿素/肌酐','BUN/肌酐','BUN/Cr']},
+  {s:'S4',cat:'水盐平衡',    key:'肌酐',            en:'Crea',    unit:'μmol/L', v:['肌酐','Crea','肌酐/umol/L']},
+];
+
+const DEF_RADAR = ['游离睾酮','皮质醇','肌酸激酶','血尿素','血红蛋白','铁蛋白','白细胞','网织红细胞百分比'];
+const DEF_PAIRS = [{k1:'血红蛋白',k2:'铁蛋白'},{k1:'睾酮',k2:'皮质醇'},{k1:'肌酸激酶',k2:'血尿素'}];
+
+// Category names that indicate double-header sheets in Excel
+const DOUBLE_HDR_CATS = new Set(['维生素','电解质','甲功','肝功','血脂','血脂四项','糖类','糖类指标','性别','甲状腺']);
+
+const SLIDE_OPTS = [
+  {id:'cover',lbl:'📄 封面',def:1},
+  {id:'S1',   lbl:'📊 System I: 调控与指挥中心',def:1},
+  {id:'S2',   lbl:'📊 System II: 执行与代谢系统',def:1},
+  {id:'S3',   lbl:'📊 System III: 循环与运载系统',def:1},
+  {id:'S4',   lbl:'📊 System IV: 后勤保障与维护',def:1},
+  {id:'radar',lbl:'🕸️ 雷达图（本人最近4次）',def:1},
+  {id:'trends',lbl:'📈 趋势图（本人数据）',def:1},
+  {id:'recs', lbl:'💡 问题与建议',def:1},
+];
+
+const REF = {
+  '睾酮':         {男:[400,870], 女:[40,75]},
+  '游离睾酮':     {男:[9.84,99],  女:[0.41,3.18]},
+  '皮质醇':       {通用:[6,19.4]},
+  '肌酸激酶':     {男:[55,170],  女:[40,150]},
+  '血糖':         {通用:[3.9,6.1]},
+  '血尿素':       {通用:[2.5,8.0]},
+  '尿酸':         {男:[210,430], 女:[150,360]},
+  '血红蛋白':     {男:[130,175], 女:[115,150]},
+  '红细胞':       {男:[4.5,5.9], 女:[4.0,5.2]},
+  '网织红细胞百分比':{通用:[0.5,1.5]},
+  '铁蛋白':       {男:[30,200],  女:[20,150]},
+  '维生素B12':    {通用:[200,900]},
+  '叶酸':         {通用:[7,20]},
+  '维生素D':      {通用:[30,80]},
+  '维生素D3':     {通用:[30,80]},
+  '白细胞':       {通用:[4,10]},
+  '超敏C反应蛋白':{通用:[0,3]},
+  '血小板':       {通用:[150,390]},
+  '钾':           {通用:[3.5,5.0]},
+  '钠':           {通用:[136,145]},
+  '氯':           {通用:[98,108]},
+  '渗透压':       {通用:[280,295]},
+  '平均红细胞容积':{通用:[82,100]},
+};
+
+
+const THEME_CONFIG = {
+  S1:{ name:'调控与指挥中心', nameEn:'Control & Command Center', label:'System I',
+    cats:{ '合成代谢\nAnabolism':['睾酮','游离睾酮'], '分解代谢\nCatabolism':['皮质醇'], '状态平衡\nStatus Balance':['睾酮/皮质醇比值'] }},
+  S2:{ name:'执行与代谢系统', nameEn:'Execution & Metabolic System', label:'System II',
+    cats:{ '结构完整性\nStructural Integrity':['肌酸激酶'], '能量储备与代谢\nEnergy Reserves & Metabolism':['血糖','血尿素','尿酸'] }},
+  S3:{ name:'循环与运载系统', nameEn:'Circulation & Transport System', label:'System III',
+    cats:{
+      '输送载体（红细胞）\nTransport Carrier':['血红蛋白','红细胞','红细胞压积','网织红细胞百分比','平均红细胞容积','平均红细胞血红蛋白','平均血红蛋白浓度'],
+      '生化原料（造血储备）\nBiochemical Raw Materials':['铁蛋白','维生素B12','维生素B6（PA）','叶酸']
+    }},
+  S4:{ name:'后勤保障与维护', nameEn:'Logistics Support & Maintenance', label:'System IV',
+    cats:{
+      '免疫防御（炎性监控）\nImmune Defense':['白细胞','超敏C反应蛋白','触珠蛋白','NLR','PLR','血小板'],
+      '代谢辅酶（微量营养）\nMetabolic Coenzymes':['维生素B1','维生素B2','维生素D','维生素D2','维生素D3'],
+      '内环境稳态（水盐平衡）\nInternal Environment':['钾','钠','氯','渗透压','血尿素/肌酐','肌酐']
+    }},
+};
+const EVAL_MAP={sl:['严重偏低','Severely Low'],l:['偏低','Low'],ok:['正常/良好','Normal/Good'],h:['偏高','High'],sh:['严重偏高','Severely High'],u:['—','—']};
+function getRefStr(key,g){
+  const src=refRanges[key]||REF[key];if(!src)return '—';
+  const r=src[g]||src['通用'];if(!r||!r.length)return '—';
+  const mn=r[0],mx=r[1];
+  if(mn===0&&mx!==Infinity)return '≤'+mx;
+  if(mx===Infinity||mx===undefined)return '≥'+mn;
+  return mn+'-'+mx;
+}
+
+// ════════════════════════════════════
+// STATE
+// ════════════════════════════════════
+let athletes={}, colMap={}, dateCol='', autoGenders={};
+let refRanges={}, refAdvice={};
+let tplBuf=null, tplSlides=[];  // template analysis
+let trendPairs=DEF_PAIRS.map(p=>({...p}));
+
+// ════════════════════════════════════
+// INIT
+// ════════════════════════════════════
+window.onload = () => {
+  const sg = document.getElementById('soptGrid');
+  sg.style.display = 'grid';
+  sg.style.gridTemplateColumns = 'repeat(auto-fill,minmax(190px,1fr))';
+  sg.style.gap = '6px';
+  SLIDE_OPTS.forEach(o => {
+    const lab=document.createElement('label');
+    lab.className='ai'+(o.def?' ck':''); lab.style.padding='7px 10px';
+    lab.innerHTML=`<input type="checkbox" id="sl_${o.id}" ${o.def?'checked':''}>${o.lbl}`;
+    lab.querySelector('input').onchange=e=>lab.classList.toggle('ck',e.target.checked);
+    sg.appendChild(lab);
+  });
+};
+const slOn = id => { const e=document.getElementById('sl_'+id); return e?e.checked:false; };
+const dg=(e,z)=>{e.preventDefault();z.classList.add('over');};
+const dp=(e,z,fid)=>{e.preventDefault();z.classList.remove('over');const f=e.dataTransfer.files[0];if(f){if(fid==='f1')loadData(f);else if(fid==='f2')loadTpl(f);else loadRef(f);}};
+
+// ════════════════════════════════════
+// FILE HANDLERS
+// ════════════════════════════════════
+function loadData(file){
+  if(!file) return;
+  showMsg('mld',''); showMsg('mup','');
+  readBuf(file).then(buf=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+      athletes={}; colMap={}; dateCol=''; autoGenders={};
+      for(const sn of wb.SheetNames) parseSheet(wb.Sheets[sn],sn);
+      const n=Object.keys(athletes).length;
+      if(!n) throw new Error('未找到运动员数据。请确认 Excel 含有"姓名"列，月周测试指标 sheet 结构：第0行=列名，第1-10行=类别说明，第11行起=数据。');
+      document.getElementById('fn1').textContent='✓ '+file.name;
+      document.getElementById('z1').classList.add('done');
+      const total=Object.values(athletes).reduce((a,b)=>a+b.length,0);
+      showMsg('mld',`✅ 已加载 ${n} 名运动员、${total} 条记录，检测到指标 ${Object.keys(colMap).length} 个`,'ok');
+      buildUI();
+      buildPreview();
+      document.getElementById('cfg').style.display='block';
+    }catch(e){showMsg('mup','❌ '+e.message,'err');console.error(e);}
+  });
+}
+
+function loadTpl(file){
+  if(!file) return;
+  readBuf(file).then(async buf=>{
+    try{
+      tplBuf=buf;
+      document.getElementById('fn2').textContent='✓ '+file.name;
+      document.getElementById('z2').classList.add('done');
+      tplSlides = await analyzeTpl(buf);
+      renderSlideMap();
+    }catch(e){showMsg('mup','❌ 模板解析失败: '+e.message,'err');}
+  });
+}
+
+function loadRef(file){
+  if(!file) return;
+  readBuf(file).then(buf=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+      parseRefWB(wb);
+      document.getElementById('fn3').textContent='✓ '+file.name;
+      document.getElementById('z3').classList.add('done');
+    }catch(e){console.warn('参考范围解析警告:',e.message);}
+  });
+}
+
+function readBuf(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsArrayBuffer(file);
+  });
+}
+
+// ════════════════════════════════════
+// EXCEL PARSING  —  matches Python logic exactly
+// Monthly sheet:   row 0 = headers, rows 1-10 = metadata (skipped), row 11+ = data
+// Quarterly etc:  rows 0+1 = double header, row 2+ = data
+// ════════════════════════════════════
+function isName(s){
+  if(!s) return false;
+  s=String(s).trim();
+  if(s.length<2||s.length>5) return false;
+  if(!/^[\u4e00-\u9fa5]{2,5}$/.test(s)) return false;
+  const SKIP=['项目','运动','合计','总计','队伍','小计','平均','分析','说明','备注','单位','指标','类别','分类','测试','姓名','序号','编号','小组','汇总','男女'];
+  return !SKIP.some(w=>s.includes(w));
+}
+
+function applyMerges(raw,ws){
+  if(!ws['!merges']) return;
+  for(const m of ws['!merges']){
+    const v=raw[m.s.r]?.[m.s.c]??null;
+    for(let r=m.s.r;r<=m.e.r;r++) for(let c=m.s.c;c<=m.e.c;c++)
+      if(raw[r]&&!(r===m.s.r&&c===m.s.c)) raw[r][c]=v;
+  }
+}
+
+function parseSheet(ws,sheetName){
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+  applyMerges(raw,ws);
+
+  // 1. Find '姓名' column in first 25 rows
+  let hIdx=-1, nameCol=0;
+  for(let i=0;i<Math.min(25,raw.length);i++){
+    const row=raw[i]||[];
+    for(let j=0;j<row.length;j++){
+      if(row[j]&&['姓名','运动员姓名','Name'].includes(String(row[j]).trim())){
+        hIdx=i; nameCol=j; break;
+      }
+    }
+    if(hIdx>=0) break;
+  }
+  if(hIdx<0){console.warn('Sheet',sheetName,'- 姓名 not found');return;}
+
+  // 2. Detect double-header: if row 0 has category names like '维生素','电解质'
+  const row0=raw[hIdx]||[];
+  const isDoubleHdr = row0.some(c=>c&&DOUBLE_HDR_CATS.has(String(c).trim()));
+
+  let headers, dataStartRow;
+  if(isDoubleHdr){
+    // Quarterly/annual: combine rows hIdx (categories) + hIdx+1 (indicator names)
+    const r1=raw[hIdx+1]||[];
+    headers=row0.map((h0,i)=>{
+      const h1=r1[i];
+      if(h1&&!String(h1).startsWith('Unnamed')&&String(h1).trim()) return String(h1).trim();
+      return h0?String(h0).trim():'';
+    });
+    dataStartRow=hIdx+2;
+  } else {
+    // Monthly: row 0 = full headers (indicator names), data from row 11+
+    headers=row0.map(c=>c?String(c).trim():'');
+    dataStartRow=hIdx+1; // will filter by isName() so rows 1-10 auto-skipped
+  }
+
+  // 3. Build column map
+  Object.assign(colMap, buildColMap(headers));
+
+  // 4. Detect date column
+  if(!dateCol){
+    const DC=['测试日期','日期','检测日期','Date','测试时间'];
+    dateCol=headers.find(h=>DC.some(d=>h.includes(d)))||'';
+  }
+
+  // 5. Gender column
+  const gColName=headers.find(h=>h==='性别'||h.includes('性别'));
+
+  // 6. Parse data rows — filter by valid Chinese name
+  for(let i=dataStartRow;i<raw.length;i++){
+    const row=raw[i]; if(!row||!row.length) continue;
+    const name=String(row[nameCol]||'').trim();
+    if(!isName(name)) continue;  // rows 1-10 auto-filtered here for monthly sheet
+
+    const rec={_sheet:sheetName};
+    headers.forEach((h,j)=>{if(h) rec[h]=row[j];});
+    for(const[k,col] of Object.entries(colMap))
+      if(rec[col]!==undefined&&rec[col]!==null) rec['__'+k]=rec[col];
+
+    // Auto-detect gender
+    if(!autoGenders[name]){
+      let g='通用';
+      if(gColName&&rec[gColName]){
+        const gv=String(rec[gColName]).trim();
+        if(gv==='男'||gv==='M') g='男';
+        else if(gv==='女'||gv==='F') g='女';
+      }
+      autoGenders[name]=g;
+    }
+
+    if(!athletes[name]) athletes[name]=[];
+    const dv=dateCol?rec[dateCol]:'';
+    const ex=dv?athletes[name].find(r=>r[dateCol]===dv):null;
+    if(ex) Object.assign(ex,rec); else athletes[name].push(rec);
+  }
+}
+
+function buildColMap(headers){
+  const m={};
+  for(const def of IND){
+    if(m[def.key]) continue;
+    for(const v of def.v){
+      const vn=v.replace(/[\s/·（）()]/g,'').toLowerCase();
+      const found=headers.find(h=>{
+        if(!h) return false;
+        const hn=h.replace(/[\s/·（）()]/g,'').toLowerCase();
+        return hn===vn||hn.includes(vn)||vn.includes(hn);
+      });
+      if(found){m[def.key]=found;break;}
+    }
+  }
+  return m;
+}
+
+function parseRefWB(wb){
+  const rsn=wb.SheetNames.find(n=>n.includes('参考范围'))||wb.SheetNames[0];
+  if(rsn){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[rsn],{header:1,defval:null});
+    applyMerges(rows,wb.Sheets[rsn]);
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i]; if(!r||!r[1]) continue;
+      const name=String(r[1]).trim(), g=r[4]?String(r[4]).trim():'通用';
+      const rng=parseRng(r[7]); if(!rng) continue;
+      if(!refRanges[name]) refRanges[name]={};
+      refRanges[name][g]=rng;
+    }
+  }
+  const asn=wb.SheetNames.find(n=>n.includes('建议'));
+  if(asn){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[asn],{header:1,defval:null});
+    applyMerges(rows,wb.Sheets[asn]);
+    for(let i=1;i<rows.length;i++){
+      const r=rows[i]; if(!r||!r[1]) continue;
+      const name=String(r[1]).trim();
+      if(!refAdvice[name]) refAdvice[name]={};
+      ['severe_low','low','normal','high','severe_high'].forEach((l,j)=>{
+        const t=r[5+j]; if(t&&String(t).length>4) refAdvice[name][l]=String(t).substring(0,90);
+      });
+    }
+  }
+}
+function parseRng(str){
+  if(!str) return null; str=String(str).trim().replace(/\s/g,'');
+  const rm=str.match(/^([\d.]+)[-~]([\d.]+)$/); if(rm) return[+rm[1],+rm[2]];
+  const lt=str.match(/^<([\d.]+)$/); if(lt) return[0,+lt[1]];
+  const gt=str.match(/^>([\d.]+)$/); if(gt) return[+gt[1],Infinity];
+  return null;
+}
+
+// ════════════════════════════════════
+// STATUS
+// ════════════════════════════════════
+function getStatus(v,key,gender){
+  if(v===null||v===undefined||v==='') return 'u';
+  const n=parseFloat(v); if(isNaN(n)) return 'u';
+  const src=refRanges[key]||REF[key]; if(!src) return 'u';
+  const r=src[gender]||src['通用']; if(!r) return 'u';
+  if(n<r[0]) return n<r[0]*0.85?'sl':'l';
+  if(n>r[1]) return n>r[1]*1.15?'sh':'h';
+  return 'ok';
+}
+const SF={sl:'FF8A80',l:'FFD740',ok:'B9F6CA',h:'FFD740',sh:'FF8A80',u:'F5F5F5'};
+const ST={sl:'B71C1C',l:'E65100',ok:'2E7D32',h:'E65100',sh:'B71C1C',u:'757575'};
+
+// ════════════════════════════════════
+// UI
+// ════════════════════════════════════
+function buildUI(){
+  const names=Object.keys(athletes);
+  // Athletes
+  const ag=document.getElementById('ag'); ag.innerHTML='';
+  names.forEach(n=>{
+    const g=autoGenders[n]||'通用';
+    const lab=document.createElement('label'); lab.className='ai ck'; lab.dataset.name=n;
+    const badge=g==='男'?'<span class="gbadge m">♂</span>':g==='女'?'<span class="gbadge f">♀</span>':'<span class="gbadge u">?</span>';
+    lab.innerHTML=`<input type="checkbox" checked id="a_${CSS.escape(n)}">${n}${badge}`;
+    lab.querySelector('input').onchange=e=>{lab.classList.toggle('ck',e.target.checked);updCnt();};
+    ag.appendChild(lab);
+  });
+  updCnt();
+
+  // Radar chips — show only indicators that actually have data
+  const avail=getAvail();
+  const rc=document.getElementById('rchips'); rc.innerHTML='';
+  avail.forEach(d=>{
+    const chip=document.createElement('span');
+    chip.className='chip'+(DEF_RADAR.includes(d.key)?' on':'');
+    chip.textContent=d.key+'/'+d.en; chip.dataset.key=d.key;
+    chip.onclick=()=>chip.classList.toggle('on');
+    rc.appendChild(chip);
+  });
+
+  // Trend pairs
+  trendPairs=DEF_PAIRS.map(p=>({...p}));
+  renderPairs(avail);
+
+  // Comparison grid (populate after main athlete grid)
+  const cmpgEl=document.getElementById('cmpg'); cmpgEl.innerHTML='';
+  names.forEach(n=>{
+    const g2=autoGenders[n]||'通用';
+    const lab2=document.createElement('label');lab2.className='ai ck';lab2.dataset.name=n;
+    const b2=g2==='男'?'<span class="gbadge m">♂</span>':g2==='女'?'<span class="gbadge f">♀</span>':'<span class="gbadge u">?</span>';
+    lab2.innerHTML=`<input type="checkbox" checked id="c_${CSS.escape(n)}">${n}${b2}`;
+    lab2.querySelector('input').onchange=e=>lab2.classList.toggle('ck',e.target.checked);
+    cmpgEl.appendChild(lab2);
+  });
+  // Date dropdowns
+  buildDateDD();
+  // Slide mapping (if template loaded)
+  if(tplSlides.length) renderSlideMap();
+}
+function cmpSelAll(v){document.querySelectorAll('#cmpg .ai').forEach(l=>{l.querySelector('input').checked=v;l.classList.toggle('ck',v);});}
+function filterComp(q){document.querySelectorAll('#cmpg .ai').forEach(l=>{l.style.display=(!q||l.dataset.name.includes(q))?'':'none';});}
+function getCompNames(){return[...document.querySelectorAll('#cmpg .ai.ck')].map(l=>l.dataset.name);}
+
+function getAvail(){
+  return IND.filter(d=>colMap[d.key]&&Object.values(athletes).some(rs=>rs.some(r=>getV(r,d.key)!==null)));
+}
+function updCnt(){
+  const t=document.querySelectorAll('#ag .ai').length, s=document.querySelectorAll('#ag .ai.ck').length;
+  document.getElementById('acnt').textContent=`已选 ${s}/${t}`;
+}
+function sa(v){document.querySelectorAll('#ag input').forEach(c=>{c.checked=v;c.closest('.ai').classList.toggle('ck',v);});updCnt();}
+function rsa(v){document.querySelectorAll('#rchips .chip').forEach(c=>c.classList.toggle('on',v));}
+function filterAthletes(q){
+  document.querySelectorAll('#ag .ai').forEach(lab=>{
+    lab.style.display=(!q||lab.dataset.name.includes(q))?'':'none';
+  });
+}
+function getSelNames(){
+  return [...document.querySelectorAll('#ag .ai.ck')].map(lab=>lab.dataset.name);
+}
+
+function renderPairs(avail){
+  if(!avail?.length) avail=getAvail();
+  const con=document.getElementById('tpairs'); con.innerHTML='';
+  if(!avail.length){ con.innerHTML='<div style="font-size:11.5px;color:#aaa;padding:4px">加载数据后可配置趋势图</div>'; return; }
+  trendPairs.forEach((p,i)=>{
+    const row=document.createElement('div'); row.className='tprow';
+    const opts=k=>avail.map(d=>`<option value="${d.key}" ${d.key===k?'selected':''}>${d.key}(${d.en})</option>`).join('');
+    row.innerHTML=`<span style="font-size:11px;color:#888;min-width:34px;flex-shrink:0">第${i+1}组</span>
+      <select class="tpsel" onchange="upP(${i},1,this.value)">${opts(p.k1)}</select>
+      <span class="vs">vs</span>
+      <select class="tpsel" onchange="upP(${i},2,this.value)">${opts(p.k2)}</select>
+      <button class="delbtn" onclick="delP(${i})">×</button>`;
+    con.appendChild(row);
+  });
+  if(!trendPairs.length) con.innerHTML='<div style="font-size:11px;color:#aaa;padding:4px">暂无趋势图组</div>';
+  if(tplSlides.length) renderSlideMap(); // refresh assignments
+}
+function upP(i,w,v){if(w===1)trendPairs[i].k1=v;else trendPairs[i].k2=v; if(tplSlides.length) renderSlideMap();}
+function delP(i){trendPairs.splice(i,1);renderPairs();}
+function addPair(){const av=getAvail();if(!av.length)return;trendPairs.push({k1:av[0]?.key||'血红蛋白',k2:av[1]?.key||'铁蛋白'});renderPairs(av);}
+
+function buildDateDD(){
+  const all=getAllDates();
+  ['dfrom','dto'].forEach(id=>{
+    const sel=document.getElementById(id);
+    sel.innerHTML='<option value="">（全部）</option>';
+    all.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d;sel.appendChild(o);});
+  });
+}
+function getAllDates(){
+  const s=new Set();
+  Object.values(athletes).forEach(rs=>rs.forEach(r=>{const d=fmtD(r[dateCol]);if(d)s.add(d);}));
+  return[...s].sort();
+}
+function getFilter(){return{from:document.getElementById('dfrom').value,to:document.getElementById('dto').value};}
+function inRange(ds,f){
+  if(!f.from&&!f.to) return true; if(!ds) return true;
+  const d=ds.replace(/\//g,'-');
+  if(f.from&&d<f.from.replace(/\//g,'-')) return false;
+  if(f.to&&d>f.to.replace(/\//g,'-')) return false;
+  return true;
+}
+
+// ════════════════════════════════════
+// TEMPLATE ANALYSIS + SLIDE MAPPING
+// ════════════════════════════════════
+async function analyzeTpl(buf){
+  const zip=await JSZip.loadAsync(buf);
+  const relsXml=await zip.file('ppt/_rels/presentation.xml.rels').async('text');
+  const targets=[...relsXml.matchAll(/Type="[^"]*\/slide"[^>]*Target="([^"]+)"/g)].map(m=>m[1]);
+  const slides=[];
+  for(let i=0;i<targets.length;i++){
+    const path='ppt/'+targets[i];
+    let isBlank=true, preview='';
+    try{
+      const xml=await zip.file(path).async('text');
+      const hasPic=/<p:pic[ >]/.test(xml);
+      const hasChrt=/<c:chart/.test(xml);
+      const texts=[...xml.matchAll(/<a:t>([^<]+)<\/a:t>/g)].map(m=>m[1].trim()).filter(Boolean);
+      const hasText=texts.some(t=>t.length>1);
+      isBlank=!hasPic&&!hasChrt&&!hasText;
+      preview=isBlank?'(空白页)':texts.slice(0,3).join('，').substring(0,45)||(hasPic?'(含图片)':'');
+    }catch{}
+    slides.push({idx:i,pageNum:i+1,path,isBlank,preview,assignment:'skip'});
+    // Default: first blank → radar, then trend pairs in order
+  }
+  // Auto-assign defaults
+  const chartOrder=['radar',...trendPairs.map((_,i)=>`trend_${i}`)];
+  let ci=0;
+  slides.forEach(sl=>{if(sl.isBlank&&ci<chartOrder.length){sl.assignment=chartOrder[ci++];}});
+  return slides;
+}
+
+function renderSlideMap(){
+  if(!tplSlides.length) return;
+  const avail=getAvail();
+  const tblOpts=Object.entries(THEME_CONFIG).map(([k,v])=>`<option value="${k}">📊 ${v.label}: ${v.name}</option>`).join('');
+  const opts=`<option value="skip">— 不插入</option>
+    ${tblOpts}
+    <option value="radar">🕸️ 雷达图</option>
+    ${trendPairs.map((p,i)=>`<option value="trend_${i}">📈 趋势图${i+1}: ${p.k1} vs ${p.k2}</option>`).join('')}
+    <option value="recs">💡 问题与建议</option>`;
+
+  let html=`<table class="smap-table"><thead><tr><th style="width:52px">页码</th><th>当前内容</th><th>指定插入内容</th></tr></thead><tbody>`;
+  tplSlides.forEach(sl=>{
+    if(sl.isBlank){
+      // Get saved assignment
+      const cur=sl.assignment||'skip';
+      html+=`<tr>
+        <td class="pg">第${sl.pageNum}页</td>
+        <td class="prev">🔲 空白页</td>
+        <td><select onchange="setSA(${sl.idx},this.value)">${opts.replace(`value="${cur}"`,`value="${cur}" selected`)}</select></td>
+      </tr>`;
+    } else {
+      html+=`<tr style="opacity:.6">
+        <td class="pg">第${sl.pageNum}页</td>
+        <td class="prev">📝 ${sl.preview}</td>
+        <td><span class="kept">保持模板内容</span></td>
+      </tr>`;
+    }
+  });
+  html+='</tbody></table>';
+  document.getElementById('smapBody').innerHTML=html;
+  document.getElementById('smapCard').style.display='block';
+  document.getElementById('soptCard').style.display='none';
+}
+
+function setSA(idx,val){const sl=tplSlides.find(s=>s.idx===idx);if(sl) sl.assignment=val;}
+
+// ════════════════════════════════════
+// DATA HELPERS
+// ════════════════════════════════════
+function getV(rec,key){
+  if(!rec) return null;
+  if(rec['__'+key]!==undefined&&rec['__'+key]!==null) return rec['__'+key];
+  const col=colMap[key]; if(col&&rec[col]!==null&&rec[col]!==undefined) return rec[col];
+  return null;
+}
+function getLast(name){const r=athletes[name];return r?.length?r[r.length-1]:null;}
+function fmtD(d){
+  if(!d) return '';
+  if(typeof d==='number'){const dt=new Date(Math.round((d-25569)*86400*1000));return`${dt.getFullYear()}/${dt.getMonth()+1}/${dt.getDate()}`;}
+  return String(d).replace(/-/g,'/');
+}
+function fmtV(v){
+  if(v===null||v===undefined||v==='') return '-';
+  const n=parseFloat(v); if(isNaN(n)) return String(v).substring(0,8);
+  return Number.isInteger(n)?String(n):n.toFixed(2);
+}
+function gnd(name){return autoGenders[name]||'通用';}
+function getByDate(name,dateStr){return (athletes[name]||[]).find(r=>fmtD(r[dateCol])===dateStr);}
+function getRecsInFilter(name,f){return(athletes[name]||[]).filter(r=>inRange(fmtD(r[dateCol]),f));}
+
+// ════════════════════════════════════
+// PREVIEW
+// ════════════════════════════════════
+const tp=()=>{const a=document.getElementById('pva');a.style.display=a.style.display==='none'?'block':'none';};
+function buildPreview(){
+  const names=Object.keys(athletes);
+  const avail=IND.filter(d=>['S1','S2'].includes(d.s)&&colMap[d.key]).slice(0,10);
+  let h='<table><tr><th>姓名</th><th>性别</th><th>日期</th>';
+  avail.forEach(d=>h+=`<th>${d.key}<br>${d.en}</th>`);
+  h+='</tr>';
+  names.forEach(n=>{
+    const last=getLast(n); if(!last) return;
+    const g=gnd(n);
+    h+=`<tr><td><b>${n}</b></td><td>${g}</td><td>${fmtD(last[dateCol])||'—'}</td>`;
+    avail.forEach(d=>{
+      const v=getV(last,d.key), st=getStatus(v,d.key,g);
+      const cl={sl:'sr',l:'sy',ok:'sg',h:'sy',sh:'sr',u:''}[st];
+      h+=`<td class="${cl}">${fmtV(v)}</td>`;
+    });
+    h+='</tr>';
+  });
+  document.getElementById('pvt').innerHTML=h+'</table>';
+}
+
+// ════════════════════════════════════
+// CHART GENERATION (Chart.js → PNG)
+// ════════════════════════════════════
+function offCanvas(w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.style.cssText='position:fixed;left:-9999px;top:-9999px;';
+  document.body.appendChild(c); return c;
+}
+function chartPNG(canvas,ch){
+  return new Promise(res=>{
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const img=canvas.toDataURL('image/png');
+      ch.destroy(); document.body.removeChild(canvas); res(img);
+    }));
+  });
+}
+
+function computeStats(keys){
+  const s={};
+  keys.forEach(k=>{
+    const vals=[];
+    Object.values(athletes).forEach(rs=>rs.forEach(r=>{const v=parseFloat(getV(r,k));if(!isNaN(v)&&v>0)vals.push(v);}));
+    const m=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    const sd=vals.length>1?Math.sqrt(vals.map(v=>(v-m)**2).reduce((a,b)=>a+b,0)/vals.length):1;
+    s[k]={mean:m,std:sd||1};
+  });
+  return s;
+}
+
+async function genRadarForAthlete(name,gender,compNames){
+  const keys=[...document.querySelectorAll('#rchips .chip.on')].map(c=>c.dataset.key).filter(k=>colMap[k]);
+  if(!keys.length) return null;
+  const g=gender||gnd(name);
+  const compRecs=(compNames&&compNames.length?compNames:Object.keys(athletes)).flatMap(n=>athletes[n]||[]);
+  const stats={};
+  keys.forEach(k=>{
+    const vals=compRecs.map(r=>parseFloat(getV(r,k))).filter(v=>!isNaN(v)&&v>0);
+    const m=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    const sd=vals.length>1?Math.sqrt(vals.map(v=>(v-m)**2).reduce((a,b)=>a+b,0)/vals.length):1;
+    stats[k]={mean:m,std:sd||1};
+  });
+  const recs=(athletes[name]||[]).slice(-4);
+  if(!recs.length) return null;
+  const RSTYLES=[{color:'#8BC1E9',lw:2,dash:[4,4]},{color:'#E89A9D',lw:2,dash:[8,3,2,3]},{color:'#5C7CFA',lw:2.5,dash:[8,4]},{color:'#D05A5E',lw:3,dash:[]}];
+  const datasets=recs.map((rec,i)=>{
+    const si=i+(4-recs.length); const st=RSTYLES[si]||RSTYLES[3];
+    const d=fmtD(rec[dateCol])||`第${i+1}次`; const isLast=(i===recs.length-1);
+    return{label:d,data:keys.map(k=>{const v=parseFloat(getV(rec,k));if(isNaN(v))return 0;
+      const z=(v-stats[k].mean)/(stats[k].std||1);return Math.max(-5,Math.min(5,parseFloat((LOWER_IS_BETTER.includes(k)?-z:z).toFixed(2))));
+    }),borderColor:st.color,backgroundColor:isLast?st.color+'28':'transparent',borderWidth:st.lw,
+    borderDash:st.dash.length?st.dash:undefined,pointRadius:5,fill:isLast};
+  });
+  datasets.push({label:'Z=0 基准线',data:keys.map(()=>0),borderColor:'#FF0000',borderDash:[6,4],borderWidth:1.5,pointRadius:0,backgroundColor:'transparent'});
+  const canvas=offCanvas(1200,880);
+  const ch=new Chart(canvas.getContext('2d'),{type:'radar',data:{labels:keys,datasets},options:{
+    animation:false,responsive:false,
+    plugins:{title:{display:true,text:`${name} (${g==='通用'?'—':g}) · 机能状态 Z-Score 雷达图`,font:{size:16,weight:'bold'},color:'#1a3a5c'},
+      legend:{position:'bottom',labels:{font:{size:12},padding:8}}},
+    scales:{r:{min:-4,max:5,ticks:{stepSize:1,font:{size:10}},pointLabels:{font:{size:13,weight:'bold'}},grid:{color:'#DDDDDD'}}}
+  }});
+  return chartPNG(canvas,ch);
+}
+
+
+
+// Per-athlete trend: shows only this athlete's data with reference range band
+async function genLineImgForAthlete(name,gender,filter,indKey){
+  const ind=IND.find(d=>d.key===indKey);if(!ind||!colMap[indKey])return null;
+  const g=gender||gnd(name);
+  const recs=getRecsInFilter(name,filter);if(!recs.length)return null;
+  const dates=recs.map(r=>fmtD(r[dateCol])).filter(Boolean);if(!dates.length)return null;
+  const vals=recs.map(r=>{const v=parseFloat(getV(r,indKey));return isNaN(v)?null:v;});
+  const shortD=dates.map(d=>d.replace(/^20\d\d\//,''));
+  const src=refRanges[indKey]||REF[indKey]; const rr=(src&&(src[g]||src['通用']))||null;
+  const datasets=[];
+  if(rr&&rr[1]!==Infinity&&rr[1]!==undefined){
+    datasets.push({label:'理想范围上限',data:dates.map(()=>rr[1]),fill:'+1',borderColor:'rgba(74,144,226,0.3)',borderWidth:1,borderDash:[4,4],backgroundColor:'rgba(74,144,226,0.13)',pointRadius:0,tension:0});
+    datasets.push({label:'理想范围下限',data:dates.map(()=>rr[0]||0),fill:false,borderColor:'rgba(74,144,226,0.3)',borderWidth:1,borderDash:[4,4],backgroundColor:'transparent',pointRadius:0,tension:0});
+  }
+  datasets.push({label:name,data:vals,borderColor:'#D05A5E',borderWidth:3,pointRadius:7,
+    pointBackgroundColor:'#FFFFFF',pointBorderColor:'#D05A5E',pointBorderWidth:2,fill:false,tension:.35,spanGaps:true});
+  const canvas=offCanvas(960,580);
+  const ch=new Chart(canvas.getContext('2d'),{type:'line',data:{labels:shortD,datasets},options:{
+    animation:false,responsive:false,
+    plugins:{title:{display:true,text:`${ind.key} (${ind.unit})`,font:{size:15,weight:'bold'},color:'#1a3a5c'},
+      legend:{position:'bottom',labels:{filter:item=>!item.text.includes('范围'),font:{size:12},padding:6}}},
+    scales:{y:{grid:{color:'#F0F0F0'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}
+  }});
+  return chartPNG(canvas,ch);
+}
+
+async function genTrendPairForAthlete(name,gender,filter,k1,k2){
+  const g=gender||gnd(name);
+  const[img1,img2]=await Promise.all([genLineImgForAthlete(name,g,filter,k1),genLineImgForAthlete(name,g,filter,k2)]);
+  if(!img1&&!img2)return null; if(!img1)return img2; if(!img2)return img1;
+  const c=offCanvas(1920,580); const ctx=c.getContext('2d');
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,1920,580);
+  const load=s=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=s;});
+  const[li,ri]=await Promise.all([load(img1),load(img2)]);
+  ctx.drawImage(li,0,0,960,580); ctx.drawImage(ri,960,0,960,580);
+  const result=c.toDataURL('image/png'); document.body.removeChild(c); return result;
+}
+
+// ─── Theme Table Image (Canvas rendering) ───
+function genThemeTableImg(athleteName,sysKey,gender){
+  const sysInfo=THEME_CONFIG[sysKey];if(!sysInfo)return null;
+  const last=getLast(athleteName);if(!last)return null;
+  const g=gender||gnd(athleteName); const dateStr=fmtD(last[dateCol])||'—';
+  const FONT='"Microsoft YaHei","PingFang SC",Arial,sans-serif';
+  const W=1400, COL=[W*0.42,W*0.17,W*0.21,W*0.20];
+  const CX=[0,COL[0],COL[0]+COL[1],COL[0]+COL[1]+COL[2]];
+  const HDR_H=52, CAT_H=42, ROW_H=50, TITLE_H=46;
+  // Build rows
+  const rows=[];
+  Object.entries(sysInfo.cats).forEach(([cat,keys])=>{
+    rows.push({type:'cat',text:cat});
+    keys.forEach(key=>{
+      const def=IND.find(d=>d.key===key);if(!def)return;
+      const v=getV(last,key), st=getStatus(v,key,g);
+      rows.push({type:'data',def,vStr:fmtV(v),st,ref:getRefStr(key,g),
+        evalCn:(EVAL_MAP[st]||EVAL_MAP.u)[0],evalEn:(EVAL_MAP[st]||EVAL_MAP.u)[1]});
+    });
+  });
+  const totalH=TITLE_H+HDR_H+rows.reduce((s,r)=>s+(r.type==='cat'?CAT_H:ROW_H),0)+4;
+  const c=offCanvas(W,totalH); const ctx=c.getContext('2d');
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,W,totalH);
+  ctx.textBaseline='middle';
+  // Title
+  ctx.textAlign='center'; ctx.fillStyle='#1a3a5c';
+  ctx.font=`bold 19px ${FONT}`;
+  ctx.fillText(`${athleteName} (${g==='通用'?'—':g})  ·  ${sysInfo.name} / ${sysInfo.nameEn}  ·  ${dateStr}`,W/2,TITLE_H/2);
+  let y=TITLE_H;
+  // Header row
+  ctx.fillStyle='#1a3a5c'; ctx.fillRect(0,y,W,HDR_H);
+  ctx.fillStyle='#FFFFFF'; ctx.font=`bold 14px ${FONT}`;
+  ['检测指标 / Indicator','结果 / Result','参考范围 / Reference','评价 / Evaluation'].forEach((h,i)=>{ctx.textAlign='center';ctx.fillText(h,CX[i]+COL[i]/2,y+HDR_H/2);});
+  y+=HDR_H;
+  rows.forEach((row,ri)=>{
+    const rh=row.type==='cat'?CAT_H:ROW_H;
+    if(row.type==='cat'){
+      ctx.fillStyle='#EEEEEE'; ctx.fillRect(0,y,W,rh);
+      const ls=row.text.split('\n'); ctx.textAlign='center';
+      ctx.fillStyle='#333'; ctx.font=`bold 13px ${FONT}`; ctx.fillText(ls[0],W/2,y+rh/2-(ls[1]?8:0));
+      if(ls[1]){ctx.fillStyle='#888'; ctx.font=`11px ${FONT}`; ctx.fillText(ls[1],W/2,y+rh/2+9);}
+    } else {
+      ctx.fillStyle=ri%2===0?'#FFFFFF':'#FAFAFA'; ctx.fillRect(0,y,W,rh);
+      ctx.fillStyle='#222'; ctx.textAlign='left'; ctx.font=`bold 13px ${FONT}`; ctx.fillText(row.def.key,16,y+rh/2-8);
+      ctx.fillStyle='#888'; ctx.font=`11px ${FONT}`; ctx.fillText(`${row.def.en}  (${row.def.unit})`,16,y+rh/2+9);
+      ctx.fillStyle='#111'; ctx.textAlign='center'; ctx.font=`14px ${FONT}`; ctx.fillText(row.vStr,CX[1]+COL[1]/2,y+rh/2);
+      ctx.fillStyle='#666'; ctx.font=`12px ${FONT}`; ctx.fillText(row.ref,CX[2]+COL[2]/2,y+rh/2);
+      ctx.fillStyle='#'+SF[row.st]; ctx.fillRect(CX[3],y,COL[3],rh);
+      ctx.fillStyle='#'+ST[row.st]; ctx.textAlign='center';
+      ctx.font=`bold 13px ${FONT}`; ctx.fillText(row.evalCn,CX[3]+COL[3]/2,y+rh/2-8);
+      ctx.font=`10.5px ${FONT}`; ctx.fillText(row.evalEn,CX[3]+COL[3]/2,y+rh/2+9);
+    }
+    ctx.strokeStyle='#DDDDDD'; ctx.lineWidth=0.5; ctx.strokeRect(0,y,W,rh);
+    [CX[1],CX[2],CX[3]].forEach(cx=>{ctx.beginPath();ctx.moveTo(cx,y);ctx.lineTo(cx,y+rh);ctx.stroke();});
+    y+=rh;
+  });
+  const result=c.toDataURL('image/png'); document.body.removeChild(c); return result;
+}
+
+// ─── Recommendations Canvas Image ───
+function genRecsImg(name, gender){
+  const last=getLast(name); if(!last) return null;
+  const g=gender||gnd(name); const FONT='"Microsoft YaHei","PingFang SC",Arial,sans-serif';
+  const dateStr=fmtD(last[dateCol])||'—';
+
+  // Collect abnormal indicators
+  const severe=[], slight=[];
+  IND.forEach(def=>{
+    const v=getV(last,def.key), st=getStatus(v,def.key,g);
+    if(st==='sl'||st==='sh'){
+      const dir=st==='sl'?'严重偏低':'严重偏高';
+      const advKey=st==='sl'?'severe_low':'severe_high';
+      severe.push({key:def.key,en:def.en,unit:def.unit,vStr:fmtV(v),dir,adv:(refAdvice[def.key]||{})[advKey]||'',level:'severe'});
+    } else if(st==='l'||st==='h'){
+      const dir=st==='l'?'偏低':'偏高';
+      const advKey=st==='l'?'low':'high';
+      slight.push({key:def.key,en:def.en,unit:def.unit,vStr:fmtV(v),dir,adv:(refAdvice[def.key]||{})[advKey]||'',level:'slight'});
+    }
+  });
+  const items=[...severe,...slight];
+  if(!items.length) items.push({key:'综合评估',en:'Overall',unit:'',vStr:'',dir:'各项指标均在正常范围内',adv:'继续保持当前训练与营养方案，定期监测指标变化。',level:'ok'});
+
+  // Helper: wrap Chinese/mixed text on canvas
+  function wrapText(ctx,text,maxW){
+    if(!text) return [];
+    const lines=[]; let line='';
+    for(let i=0;i<text.length;i++){
+      const test=line+text[i];
+      if(ctx.measureText(test).width>maxW&&line.length>0){lines.push(line);line=text[i];}
+      else line=test;
+    }
+    if(line) lines.push(line);
+    return lines;
+  }
+
+  // Pre-calculate row heights based on advice text length
+  const W=1400, LW=340, RW=W-LW-40, MINRH=68, LPAD=20, RPAD=20;
+  const tempC=offCanvas(100,100); const tctx=tempC.getContext('2d');
+  tctx.font=`13px ${FONT}`;
+  const rowHeights=items.map(item=>{
+    const lines=wrapText(tctx,item.adv,RW-RPAD*2); 
+    return Math.max(MINRH, (lines.length||1)*18+32);
+  });
+  document.body.removeChild(tempC);
+
+  const HDR_H=60, TITLE_H=52;
+  const totalH=HDR_H+TITLE_H+rowHeights.reduce((a,b)=>a+b,0)+16;
+
+  const c=offCanvas(W,totalH); const ctx=c.getContext('2d');
+  ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,W,totalH);
+  ctx.textBaseline='middle';
+
+  // ── Title bar ──
+  ctx.fillStyle='#1a3a5c'; ctx.fillRect(0,0,W,HDR_H);
+  ctx.fillStyle='#FFFFFF'; ctx.textAlign='center'; ctx.font=`bold 22px ${FONT}`;
+  ctx.fillText('重要启示 · Key Insights',W/2,HDR_H/2);
+
+  // ── Athlete info bar ──
+  ctx.fillStyle='#EEF2F8'; ctx.fillRect(0,HDR_H,W,TITLE_H);
+  ctx.fillStyle='#1a3a5c'; ctx.textAlign='left'; ctx.font=`bold 17px ${FONT}`;
+  ctx.fillText(name+' ('+( g==='通用'?'—':g)+')',LPAD,HDR_H+TITLE_H/2-8);
+  ctx.fillStyle='#555'; ctx.font=`12px ${FONT}`;
+  ctx.fillText('最新测试: '+dateStr,LPAD,HDR_H+TITLE_H/2+10);
+  ctx.textAlign='right';
+  const sevLabel=severe.length?`🔴 严重异常 ${severe.length} 项`:'';
+  const sliLabel=slight.length?`🟡 轻度异常 ${slight.length} 项`:'';
+  ctx.fillStyle='#c62828'; ctx.font=`bold 13px ${FONT}`;
+  ctx.fillText(sevLabel,W-LPAD-(sliLabel?200:10),HDR_H+TITLE_H/2-8);
+  ctx.fillStyle='#e65100';
+  ctx.fillText(sliLabel,W-LPAD,HDR_H+TITLE_H/2-8);
+  // Column headers
+  ctx.fillStyle='#1a3a5c'; ctx.textAlign='left';
+  ctx.font=`bold 12px ${FONT}`;
+  ctx.fillText('问题指标',LPAD,HDR_H+TITLE_H/2+10);
+  ctx.fillText('建议措施',LW+LPAD+20,HDR_H+TITLE_H/2+10);
+
+  // ── Items ──
+  let y=HDR_H+TITLE_H;
+  items.forEach((item,idx)=>{
+    const rh=rowHeights[idx];
+    // Row bg
+    ctx.fillStyle=idx%2===0?'#FFFFFF':'#FAFBFD'; ctx.fillRect(0,y,W,rh);
+
+    // Number circle
+    const numBg=item.level==='severe'?'#FFCDD2':item.level==='slight'?'#FFF9C4':'#C8E6C9';
+    const numFg=item.level==='severe'?'#B71C1C':item.level==='slight'?'#E65100':'#2E7D32';
+    ctx.fillStyle=numBg; ctx.beginPath(); ctx.arc(LPAD+18,y+rh/2,16,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=numFg; ctx.textAlign='center'; ctx.font=`bold 14px ${FONT}`;
+    ctx.fillText(String(idx+1),LPAD+18,y+rh/2);
+
+    // Left: indicator name + value + severity
+    ctx.textAlign='left';
+    ctx.fillStyle='#1a1a1a'; ctx.font=`bold 14px ${FONT}`;
+    ctx.fillText(item.key,LPAD+44,y+rh/2-12);
+    ctx.fillStyle='#666'; ctx.font=`11px ${FONT}`;
+    ctx.fillText(item.en,LPAD+44,y+rh/2+4);
+    const stColor=item.level==='severe'?'#c62828':item.level==='slight'?'#e65100':'#2e7d32';
+    ctx.fillStyle=stColor; ctx.font=`bold 12px ${FONT}`;
+    ctx.fillText(item.dir+(item.vStr?' ('+item.vStr+' '+item.unit+')':''),LPAD+44,y+rh/2+19);
+
+    // Vertical divider
+    ctx.strokeStyle='#DDDDDD'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(LW,y+8); ctx.lineTo(LW,y+rh-8); ctx.stroke();
+
+    // Right: advice text (wrapped)
+    if(item.adv){
+      ctx.fillStyle='#333'; ctx.font=`13px ${FONT}`;
+      const advLines=wrapText(ctx,item.adv,RW-RPAD*2);
+      const lineH=18, totalTH=advLines.length*lineH;
+      const startY=y+rh/2-totalTH/2+9;
+      advLines.forEach((line,li)=>ctx.fillText(line,LW+LPAD+20,startY+li*lineH));
+    } else {
+      ctx.fillStyle='#AAA'; ctx.font=`12px ${FONT}`;
+      ctx.fillText('请咨询队医获取详细干预方案',LW+LPAD+20,y+rh/2);
+    }
+
+    // Bottom divider
+    ctx.strokeStyle='#E8EEF5'; ctx.lineWidth=0.5;
+    ctx.beginPath(); ctx.moveTo(0,y+rh); ctx.lineTo(W,y+rh); ctx.stroke();
+    y+=rh;
+  });
+
+  const result=c.toDataURL('image/png'); document.body.removeChild(c); return result;
+}
+
+// ════════════════════════════════════
+// PPT SLIDES (PptxGenJS)
+// ════════════════════════════════════
+function addCover(pptx,selNames,dateStr){
+  const sl=pptx.addSlide(); sl.background={color:T.dark};
+  sl.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:.18,h:7.5,fill:{color:T.accent},line:{color:T.accent}});
+  sl.addShape(pptx.shapes.RECTANGLE,{x:.18,y:0,w:13.12,h:7.5,fill:{color:T.primary},line:{color:T.primary}});
+  sl.addShape(pptx.shapes.RECTANGLE,{x:9.5,y:0,w:3.83,h:7.5,fill:{color:T.dark,transparency:25},line:{color:T.dark}});
+  sl.addText('🩸',{x:9.8,y:.8,w:3,h:2.5,fontSize:90,align:'center'});
+  const nm=selNames.join('·'); const fs=nm.length>10?28:36;
+  sl.addText(nm,{x:.6,y:2,w:8.5,h:1.2,fontFace:'Microsoft YaHei',fontSize:fs,bold:true,color:'FFFFFF',align:'left',valign:'middle'});
+  sl.addText('血液生化监测报告',{x:.6,y:3.3,w:7,h:.6,fontFace:'Microsoft YaHei',fontSize:20,color:T.accent+'CC',align:'left'});
+  sl.addShape(pptx.shapes.RECTANGLE,{x:.6,y:4.05,w:4.5,h:.04,fill:{color:T.accent},line:{color:T.accent}});
+  sl.addText(dateStr,{x:.6,y:4.2,w:6,h:.4,fontFace:'Microsoft YaHei',fontSize:14,color:'CCCCCC',align:'left'});
+}
+
+function addTableSlide(pptx,title,secKey,selNames){
+  // For S3a/S3b split
+  let inds;
+  if(secKey==='S3a') inds=IND.filter(d=>d.s==='S3'&&d.cat==='红细胞'&&colMap[d.key]);
+  else if(secKey==='S3b') inds=IND.filter(d=>d.s==='S3'&&d.cat==='造血原料'&&colMap[d.key]);
+  else inds=IND.filter(d=>d.s===secKey&&colMap[d.key]);
+
+  inds=inds.filter((d,i,a)=>a.findIndex(x=>x.key===d.key)===i);
+  if(!inds.length) return;
+
+  const cats=[...new Set(inds.map(d=>d.cat))];
+  const sl=pptx.addSlide(); sl.background={color:'FAFBFD'};
+  sl.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:.85,fill:{color:T.primary},line:{color:T.primary}});
+  sl.addText(title,{x:.3,y:0,w:12.7,h:.85,fontFace:'Microsoft YaHei',fontSize:22,bold:true,color:'FFFFFF',align:'center',valign:'middle'});
+
+  const b=[{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'}];
+  const mo=(fill,color,ex={})=>({fill:{color:fill},color,fontFace:'Microsoft YaHei',fontSize:9.5,align:'center',valign:'middle',border:b,...ex});
+
+  const catRow=[{text:'姓名',options:{rowspan:2,bold:true,...mo(T.secondary,'FFFFFF',{fontSize:11})}}];
+  cats.forEach(cat=>{const cnt=inds.filter(d=>d.cat===cat).length;catRow.push({text:cat,options:{colspan:cnt,bold:true,...mo(T.light,T.dark)}});});
+  const indRow=inds.map(d=>({text:`${d.key}\n${d.en}\n${d.unit}`,options:{bold:true,...mo(T.secondary,'FFFFFF',{fontSize:8})}}));
+  const dataRows=selNames.map(name=>{
+    const rec=getLast(name), g=gnd(name);
+    const cells=[{text:name,options:{bold:true,...mo('F0F4F8',T.dark)}}];
+    inds.forEach(d=>{const v=getV(rec,d.key), st=getStatus(v,d.key,g);
+      cells.push({text:fmtV(v),options:{bold:st!=='ok'&&st!=='u',...mo(SF[st],ST[st])}});});
+    return cells;
+  });
+  const colW=[1.3,...inds.map(()=>Math.max(.6,(12.7-1.3)/inds.length))];
+  sl.addTable([catRow,indRow,...dataRows],{x:.2,y:.95,w:12.9,rowH:.46,colW,fontFace:'Microsoft YaHei'});
+
+  // Legend
+  [[SF.sh,ST.sh,'差'],[SF.l,ST.l,'需注意'],[SF.ok,ST.ok,'最佳']].forEach(([bg,fg,lbl],i)=>{
+    const x=3+i*2.6;
+    sl.addShape(pptx.shapes.RECTANGLE,{x,y:6.65,w:.2,h:.2,fill:{color:bg},line:{color:bg}});
+    sl.addText(lbl,{x:x+.26,y:6.65,w:2.2,h:.2,fontSize:9,color:'555555',fontFace:'Microsoft YaHei',valign:'middle'});
+  });
+}
+
+function addChartSlide(pptx,img,title){
+  if(!img) return;
+  const sl=pptx.addSlide(); sl.background={color:'FAFBFD'};
+  sl.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:.75,fill:{color:T.primary},line:{color:T.primary}});
+  sl.addText(title,{x:.3,y:0,w:12.7,h:.75,fontFace:'Microsoft YaHei',fontSize:20,bold:true,color:'FFFFFF',align:'center',valign:'middle'});
+  sl.addImage({data:img,x:.15,y:.85,w:13.0,h:6.4});
+}
+
+function addRecsSlide(pptx,selNames){
+  const sl=pptx.addSlide(); sl.background={color:'FAFBFD'};
+  sl.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:.82,fill:{color:T.primary},line:{color:T.primary}});
+  sl.addText('重要启示 · Key Insights',{x:.3,y:0,w:12.7,h:.82,fontFace:'Microsoft YaHei',fontSize:21,bold:true,color:'FFFFFF',align:'center',valign:'middle'});
+  const b=[{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'},{pt:.4,color:'CCCCCC'}];
+  const h=(f,c)=>({fill:{color:f},color:c,bold:true,fontFace:'Microsoft YaHei',fontSize:10.5,align:'center',valign:'middle',border:b});
+  const d=(f,c,al='left')=>({fill:{color:f},color:c,fontFace:'Microsoft YaHei',fontSize:9.5,align:al,valign:'top',border:b});
+  const rows=[[{text:'姓名',options:h(T.secondary,'FFFFFF')},{text:'主要发现',options:h(T.secondary,'FFFFFF')},{text:'建议措施',options:h(T.secondary,'FFFFFF')}]];
+  selNames.forEach(name=>{
+    const rec=getLast(name), g=gnd(name);
+    const sv=[],wv=[],adv=[];
+    IND.forEach(def=>{const v=getV(rec,def.key),st=getStatus(v,def.key,g);
+      if(st==='sl'||st==='sh') sv.push(`【严重】${def.key}=${fmtV(v)} ${def.unit}`);
+      else if(st==='l'||st==='h') wv.push(`【关注】${def.key}=${fmtV(v)} ${def.unit}`);
+      const k2={sl:'severe_low',l:'low',ok:'normal',h:'high',sh:'severe_high',u:''}[st];
+      const a=(refAdvice[def.key]||{})[k2]||'';
+      if(a&&st!=='ok'&&st!=='u') adv.push(a);
+    });
+    rows.push([
+      {text:name,options:{bold:true,...d('F0F4F8',T.dark,'center')}},
+      {text:[...sv,...wv].slice(0,7).join('\n')||'各项指标均在参考范围内',options:d('FFFFFF','333333')},
+      {text:adv.slice(0,3).join('\n')||'继续保持当前训练与营养方案',options:d('FFFDE7','555500')},
+    ]);
+  });
+  sl.addTable(rows,{x:.2,y:.93,w:12.9,colW:[1.5,5.4,6.0],rowH:.52,fontFace:'Microsoft YaHei'});
+}
+
+// ════════════════════════════════════
+// TEMPLATE PPTX FILLING
+// ════════════════════════════════════
+async function insertImgIntoSlide(zip,slidePath,relsPath,imgBase64,imgName){
+  // Add image file
+  const imgData=imgBase64.replace(/^data:image\/[^;]+;base64,/,'');
+  zip.file(`ppt/media/${imgName}.png`,imgData,{base64:true});
+
+  // Update rels
+  let relsXml='';
+  try{relsXml=await zip.file(relsPath).async('text');}
+  catch{relsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;}
+  const ids=[...relsXml.matchAll(/Id="rId(\d+)"/g)].map(m=>+m[1]);
+  const nId=(ids.length?Math.max(...ids):1)+1;
+  const rId=`rId${nId}`;
+  relsXml=relsXml.replace('</Relationships>',`<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${imgName}.png"/>\n</Relationships>`);
+  zip.file(relsPath,relsXml);
+
+  // Insert <p:pic> into slide XML (full-page: 12192000 x 6858000 EMU = 13.33" x 7.5")
+  const picXml=`<p:pic>
+    <p:nvPicPr><p:cNvPr id="${nId+100}" name="${imgName}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>
+    <p:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+    <p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+  </p:pic>`;
+
+  let slideXml=await zip.file(slidePath).async('text');
+  slideXml=slideXml.replace('</p:spTree>',picXml+'</p:spTree>');
+  zip.file(slidePath,slideXml);
+}
+
+// ════════════════════════════════════
+// MAIN GENERATE — no complex merging
+// ════════════════════════════════════
+async function genAll(){
+  const selNames=getSelNames();
+  if(!selNames.length){showMsg('mge','❌ 请先选择至少一名运动员','err');return;}
+  if(!Object.keys(athletes).length){showMsg('mge','❌ 请先上传测试数据 Excel','err');return;}
+  const btn=document.getElementById('gbtn'); btn.disabled=true;
+  showMsg('mdn',''); showMsg('mge','');
+  const filter=getFilter();
+  const compNames=getCompNames();
+
+  try{
+    const total=selNames.length; const allBufs=[];
+
+    for(let ni=0;ni<total;ni++){
+      const name=selNames[ni]; const g=gnd(name);
+      const base=Math.round(ni/total*88);
+
+      setP(base+1,`[${ni+1}/${total}] ${name} · 生成四主题表格图…`);
+      const imgs={};
+      for(const sk of ['S1','S2','S3','S4']) imgs[sk]=genThemeTableImg(name,sk,g);
+
+      setP(base+3,`[${ni+1}/${total}] ${name} · 生成雷达图…`);
+      imgs.radar=await genRadarForAthlete(name,g,compNames.length?compNames:Object.keys(athletes));
+      imgs.recs=genRecsImg(name,g);
+
+      for(let ti=0;ti<trendPairs.length;ti++){
+        const p=trendPairs[ti];
+        setP(base+4+ti,`[${ni+1}/${total}] ${name} · 趋势图${ti+1}: ${p.k1} vs ${p.k2}…`);
+        imgs['trend_'+ti]=await genTrendPairForAthlete(name,g,filter,p.k1,p.k2);
+      }
+
+      let buf;
+      if(tplBuf){
+        const zip=await JSZip.loadAsync(tplBuf);
+        for(const sl of tplSlides){
+          if(!sl.isBlank||sl.assignment==='skip') continue;
+          const img=imgs[sl.assignment]; if(!img) continue;
+          const slideFile=sl.path.replace('ppt/slides/','');
+          const relsPath=`ppt/slides/_rels/${slideFile}.rels`;
+          await insertImgIntoSlide(zip,sl.path,relsPath,img,`${name}_p${sl.pageNum}_${sl.assignment}`);
+        }
+        buf=await zip.generateAsync({type:'arraybuffer'});
+      } else {
+        const pptx=new PptxGenJS(); pptx.layout='LAYOUT_WIDE';
+        const last=getLast(name); const ds=last?fmtD(last[dateCol]):'';
+        if(slOn('cover')) addCover(pptx,[name],ds);
+        for(const sk of ['S1','S2','S3','S4']){
+          if(slOn(sk)&&imgs[sk]) addChartSlide(pptx,imgs[sk],`${THEME_CONFIG[sk].label}: ${THEME_CONFIG[sk].name} / ${THEME_CONFIG[sk].nameEn}`);
+        }
+        if(slOn('radar')&&imgs.radar) addChartSlide(pptx,imgs.radar,`${name} · 机能状态 Z-Score 雷达图`);
+        if(slOn('trends')) for(let ti=0;ti<trendPairs.length;ti++){
+          const p=trendPairs[ti];
+          if(imgs['trend_'+ti]) addChartSlide(pptx,imgs['trend_'+ti],`${name} · 趋势分析: ${p.k1} vs ${p.k2}`);
+        }
+        if(slOn('recs')&&imgs.recs) addChartSlide(pptx,imgs.recs,''+name+' · 问题与建议 · Key Insights');
+        buf=await pptx.write({outputType:'arraybuffer'});
+      }
+      allBufs.push({name,buf});
+    }
+
+    setP(94,'打包下载…');
+    if(allBufs.length===1){
+      dlBuf(allBufs[0].buf,allBufs[0].name+'_报告.pptx');
+      showMsg('mdn','✅ 已下载: '+allBufs[0].name+'_报告.pptx','ok');
+    } else {
+      const zip=new JSZip();
+      allBufs.forEach(({name,buf})=>zip.file(name+'_报告.pptx',buf));
+      const blob=await zip.generateAsync({type:'blob'});
+      const url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url; a.download='血液报告_'+allBufs.length+'人.zip';
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url),1000);
+      showMsg('mdn','✅ 已下载 '+allBufs.length+' 份报告 (ZIP)','ok');
+    }
+    setP(100,'完成！');
+  }catch(err){
+    console.error(err); showMsg('mge','❌ 生成失败: '+err.message,'err');
+  }
+  btn.disabled=false; setTimeout(()=>setP(0,''),4000);
+}
+
+// ════════════════════════════════════
+// UTILS
+// ════════════════════════════════════
+function setP(p,t){
+  const pw=document.getElementById('pgw'),pf=document.getElementById('pf'),pt=document.getElementById('pt');
+  if(!p&&!t){pw.style.display='none';return;}
+  pw.style.display='block'; pf.style.width=p+'%'; pt.textContent=t;
+}
+function showMsg(id,txt,tp='ok'){
+  const el=document.getElementById(id);el.textContent=txt;el.style.display=txt?'block':'none';el.className='msg '+(tp==='err'?'merr':'mok');
+}
+function dlBuf(buf,fn){
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fn;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+</script>
+</body>
+</html>
